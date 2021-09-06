@@ -1,0 +1,485 @@
+Lab notebook, single-cell
+
+2021-02-26
+
+DATA
+
+##################################
+
+2/26/2021
+From https://support.10xgenomics.com/single-cell-multiome-atac-gex/software/pipelines/latest/using/count
+
+File Name	Description
+web_summary.html	Run summary metrics and charts in HTML format.
+summary.csv	Run summary metrics in CSV format.
+raw_feature_bc_matrix.h5	Raw feature barcode matrix stored as a CSC sparse matrix in hdf5 format. The rows consist of all the gene and peak features concatenated together and the columns consist of all possible barcode sequences (numbering 736,320).
+raw_feature_bc_matrix	Raw feature barcode matrix stored as a CSC sparse matrix in MEX format. The rows consist of all the gene and peak features concatenated together and the columns consist of all possible barcode sequences (numbering 736,320).
+per_barcode_metrics.csv	ATAC and GEX read count summaries generated for every barcode observed in the experiment. For more details see Per-barcode metrics.
+gex_possorted_bam.bam	GEX reads aligned to the genome and transcriptome annotated with barcode information in BAM format.
+gex_possorted_bam.bam.bai	Index for gex_possorted_bam.bam.
+gex_molecule_info.h5	Count and barcode information for every GEX molecule observed in the experiment in hdf5 format.
+filtered_feature_bc_matrix.h5	Filtered feature barcode matrix stored as a CSC sparse matrix in hdf5 format. The rows consist of all the gene and peak features concatenated together (identical to raw feature barcode matrix) and the columns are restricted to those barcodes that are identified as cells.
+filtered_feature_bc_matrix	Filtered feature barcode matrix stored as a CSC sparse matrix in MEX format. The rows consist of all the gene and peak features concatenated together (identical to raw feature barcode matrix) and the columns are restricted to those barcodes that are identified as cells.
+cloupe.cloupe	Loupe Browser visualization file with all the analysis outputs.
+atac_possorted_bam.bam.bai	ATAC reads aligned to the genome annotated with barcode information in BAM format.
+atac_possorted_bam.bam	Index for atac_possorted_bam.bam.
+atac_peaks.bed	Locations of open-chromatin regions identified in this sample. These regions are referred to as "peaks".
+atac_peak_annotation.tsv	Annotations of peaks based on genomic proximity alone. Note that these are not functional annotations and they do not make use of linkage with GEX data.
+atac_fragments.tsv.gz	Count and barcode information for every ATAC fragment observed in the experiment in TSV format.
+atac_fragments.tsv.gz.tbi	Index for atac_fragments.tsv.gz.
+atac_cut_sites.bigwig	Genome track of observed transposition sites in the experiment smoothed at a resolution of 400 bases in BIGWIG format.
+analysis	Various secondary analyses that utilize the ATAC data, the GEX data, and their linkage: dimensionality reduction and clustering results for the ATAC and GEX data, differential expression, and differential accessibility for all clustering results above and linkage between ATAC and GEX data. See Analysis Overview for more information.
+
+2/26/2021
+
+Data exploration, RCMB56
+
+web_summary.html
+	Our data have low ATAC and RNA coverage, as expected for lcWGS QC.
+	Estimated number of cells	10,738
+	Clustering done separately on RNA and ATAC features. Can I find a joint classifier?
+	ATAC:
+		Median high-quality fragments per cell	1,414
+		Number of peaks	184,234
+	RNA:
+		Median genes per cell	161
+		Total genes detected	20,965
+
+Read filtering
+ATAC
+	Each unique genomic region can only map to at most 1 ATAC read
+	(Why not use barcodes to distinguish duplicates?)
+RNA
+	Counts include transcriptomic, intronic and exonic reads.
+	
+
+Dimensionality reduction
+RNA
+	PCA (IRLBA algorithm), 10 components.
+ATAC
+	Inverse-document frequency (idf) transform (greater weight to counts of peaks which occur in few barcodes)
+	SVD (IRLBA), 15 components
+	Depth normalization - each barcode to L2 norm in 15d.
+	Spherical k-means
+
+Clustering & Visualization - on DR data
+	spherical k-means
+	t-SNE
+	UMAP
+
+Why do I have 2 almost identical differential_expression.csv files under both ATAC and gex?
+
+2/26/2021
+
+Papers & Resources
+CellRanger multiome docs
+	https://support.10xgenomics.com/single-cell-multiome-atac-gex/software/overview/welcome
+
+
+2/26/2021
+
+Loupe Tutorial
+Loupe is the broswer for copy number estimation in CellRanger's single-cell DNA
+pipeline. Notably not ATAC, but let's see what it can do.
+
+Basic functionality: Hierarchical clustering groups cells on the right by CN (20MB bins).
+Can zoom, get a region/gene, or get a subtree. Top browser shows current node's descendants;
+bottom browser shows node.
+
+Docs
+CellRanger DNA:
+	https://support.10xgenomics.com/single-cell-dna/software/pipelines/latest/what-is-cell-ranger-dna
+Tutorial:
+	https://support.10xgenomics.com/single-cell-dna/software/visualization/latest/tutorial-1-introduction
+Copy-number calling algorithm:
+	https://support.10xgenomics.com/single-cell-dna/software/pipelines/latest/algorithms/clustering
+
+
+6/10/2021
+
+case23 download scRNA+ATAC from Sebastian
+md5sums checked
+/expanse/lustre/projects/csd677/collab/data/scRNA+ATAC/RCMB56-ht/deep
+
+6/10/2021
+
+CellRanger metrics
+
+pdx: 1 warning: number of detected cells is high. Ideally <10.000.
+ht: 0 warnings.
+Est number of cells
+	pdx 12863	
+	ht 4624	4473
+Median ATAC fragments per cell
+	pdx 5050	
+	ht 12327	11711
+GEx median genes expressed per cell
+	pdx 2765	
+	ht 1575	1525
+
+6/11/2021
+Transferred Mariya's project directory. See
+/expanse/lustre/projects/csd677/collab/projects/Kazachkova_rotation_sp21.zip
+
+6/11/2021
+
+Run CellRanger 2.0.0 on RCMB56 pdx, ht datasets.
+
+METHODS
+Cluster mode - see https://support.10xgenomics.com/single-cell-multiome-atac-gex/software/pipelines/latest/advanced/cluster-mode
+
+
+4/15/2021
+
+Yingxi meeting
+
+GOAL: ssGSEA on metacells. 
+
+METHODS
+Removed all zeroes from each sample, then took intersection of these.
+Ran ssGSEA.
+
+Anthony: Look at the hierarchical clustering.
+
+
+
+6/17/2021
+
+Yingxi meeting with anthony.
+
+Seem to have 3 meta-clusters of metacells:
+6_0, 6_1, 6_2, 1 - MYC, MTORC1, mitotic spindle, DNA repair, estrogen response.
+0, 5, 3, 8, 10, 9 - Angiogenesis, KRAS down, WNT B-catenin
+4, 2, 7 - Protein secretion, KRAS signalling, pancreatic beta cells, KRAS dn.
+
+Could run velocity analysis:
+	VeloCyto
+	https://velocyto.org/velocyto.py/tutorial/cli.html#run10x-run-on-10x-chromium-samples
+	https://academic.oup.com/database/article/doi/10.1093/database/baz046/5427041
+
+
+6/22/2021
+
+Tuesday meeting
+Yingxi
+
+- Presented hierarchical clustering on meta-cells.
+- Jill: what is the distribution of scores?
+- Owen: Plot scores on 1d axis, take top 10%?
+- Jill: column normalization, or no normalization on clustering.
+- Jill: use GO ontology sets?
+- Owen: gene sets for ecdnas 1,2,3
+
+Hi Yingxi,
+	Attached are bed files corresponding to amplified genes (including partial amplifications) on RCMB56 ecDNAs 1 and 2.I've also 
+	attached a bed containing all regions I think are in ecDNA 3, but genes are not annotated on this one. 
+	Outline of steps to generate a .gmt file of sets of genes corresponding to each ecDNA:
+	- Download the gencode reference set. Pick your favorite format, GTF and GFF3 are pretty similar. 
+	- Filter for protein-coding genes. Using awk, a template command would be:
+	awk '{if($3=="transcript" && $20=="\"protein_coding\";"){print $0}}' gencode.gtf
+	- Parse into bed. Keep the gene names.
+	- bedtools intersect -wa will give you genes overlapping the ecDNA.
+	- Parse into gmt.
+Yours,Owen
+
+
+6/23/2021
+
+scATAC-seq bam files
+
+METHODS
+idk what I'm looking for; just getting familiar with the data.
+
+RESULTS
+- bam files are large - 32 and 16Gb.
+- Can see the ends of the ecDNAs in the atac coverage. ht more obvious than pdx.
+- peaks are highly highly enriched for signal, but they account for a minority of total sequence.
+- CB is cell barcode name
+- discordant reads appear in the scATAC data.
+- Examining the atac_fragments.tsv.gz file, it looks like using barcode info would dramatically alter
+	counts per barcode per peak - there are ~4 different cells with the same read at the beginning of
+	chr1, and that's not even an ecDNA region.
+
+
+6/23/2021
+hdf5 format - see https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/advanced/h5_matrices
+mex format - https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/output/matrices
+
+
+7/1/2021
+
+Counting reads in subset-bam
+
+METHODS
+see 2021-06-23_subset-bam.
+subset-bam (10x Genomics) to get bam per barcode
+featurecounts to count each ecDNA and chr2 as a control.
+
+
+7/20/2021
+
+Harmony
+
+BACKGROUND
+CellRanger aggr failed to correct batch effects. See 
+/expanse/lustre/projects/csd677/yil031/scRNA_ATAC/cellranger_aggr/pdx_ht_rcmb56_aggre/outs
+
+Quickstart:
+	https://portals.broadinstitute.org/harmony/articles/quickstart.html#seurat-1
+Tutorial with Seurat:
+	https://portals.broadinstitute.org/harmony/SeuratV3.html
+
+
+7/22/2021
+
+ecdna-featurecounts
+
+GOAL
+Count reads mapping to each ecDNA in single cells, and also to chr2 as a control.
+
+METHODS
+/expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/2021-06-23_subset-bam/
+/home/ochapman/Documents/Mesirov/scRNA+ATAC/2021-07-22_ecdna-featurecounts
+
+RESULTS
+Same as Mariya. No obvious multimodal distribution of ecDNA+/- cells. 
+See updates/2021-07-28 scATAC ecDNA detection, https://docs.google.com/presentation/d/1AQFXeR_pjxxjWItUgGZ3pyrpCPetTlEkNccB3y_mRS8/edit?usp=sharing
+
+
+7/27/2021
+
+Counting read depth at random regions, mpileup
+
+get excluded regions
+	cat /expanse/lustre/projects/csd677/collab/bin/AmpliconArchitect/data_repo/GRCh38/GRCh38_merged_centromeres_conserved_sorted.bed RCMB56_ecDNA_1.hg38.bed > ecDNA1_exclude.hg38.bed
+list all bam files to .txt
+	find /expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/2021-06-23_subset-bam/RCMB56-ht/ -name "*.bam" -print > RCMB56-ht-bamlist.txt
+index all bams
+	cat RCMB56-ht-bamlist.txt | while read line; do samtools index $line; done
+Oops, samtools mpileup computes depth at a single base...
+
+Counting read depth at random regions, featurecounts
+
+8/3/2021
+
+Permutation test for detecting ecDNA
+
+GOAL
+We need a distribution to estimate the probability that a normal genomic region could
+generate this many reads at the ecDNA locus. 
+
+METHODS
+/expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/2021-07-26_enrich_vs_permuted_bkgd/
+/mnt/c/Users/ochapman/Documents/Mesirov/scRNA+ATAC/2021-08-02_featurecounts_permutation
+Wrote a script to perform generate 1000 random features of the same length as the ecDNA, and 
+ featurecounts each random interval for each cell.
+This was clearly very inefficient. 12 hours on a dedicated compute node gave me 128 finished permutations.
+Then, we can estimate p-values 2 ways:
+ - empirical: how many times do we randomly get this many or more reads in a random region?
+ - poisson: fit ML poisson distribution to the random permutations, compute p-value for the poisson.
+
+RESULTS
+Both implemented correctly, and both look pretty good at distinguishing ecDNA+ cells. 
+Probably need more random samples to accurately estimate p-values though.
+Also, the permutation test is very expensive and time-consuming.
+
+DISCUSSION
+Can we make the permutation test more efficient?
+Run more permutations.
+
+8/3/2021
+
+Resources for Sunita
+
+CellRanger runs at 
+/expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/RCMB56-ht/cellranger-arc.sbatch
+/expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/RCMB56-pdx/cellranger-arc.sbatch
+
+8/16/2021
+
+Alex - permutation test - any ideas?
+How many sigmas?
+Plot distribution of sigma values.
+Is there another approach to see if a cell is ecDNA+?
+sigma = sqrt(lambda)
+
+
+8/31/2021
+
+Seurat Notes
+
+BACKGROUND
+Trying to run Yingxi's code on my own jupyter notebook. Want to do a code review, and prep
+teaching materials for Sunita.
+
+Installation
+conda install -c bioconda r-seurat r-signac bioconductor-bsgenome.hsapiens.ucsc.hg38 bioconductor-ensdb.hsapiens.v86 bioconductor-biovizbase
+conda install r-ape # required for BuildClusterTree
+conda install r-tidyverse # regular R sucks
+conda install -c bioconda bioconductor-limma # FindAllMarkers prefers this implementation of Wilcoxon Rank Sum Test
+
+
+8/31/2021
+
+Is it possible to determine if a vector is approximately a linear combination of other vectors?
+Yes. See https://math.stackexchange.com/questions/2190547/is-it-possible-to-determine-if-a-vector-is-approximately-a-linear-combination-of
+
+9/1/2021
+
+Correlations
+
+RESULTS
+RCMB56-ht, ecDNA1
+ z-score vs DNTTIP2 expression
+	Negative. r=0.27
+ z-score vs ATAC embeddings
+	PC2. r=-0.55. Relatively strong.
+ z-score vs RNA embeddings
+	PC2. r=0.30. Strikingly, almost all lambda >> 0 have positive values on PC2.
+ 
+RCMB56-pdx, ecDNA1
+  z-score vs DNTTIP2 expression
+	Negative. r=0.48. Correlation is there but weak.
+ z-score vs ATAC embeddings
+	PC1. r=-0.44. Sequencing depth.
+ z-score vs RNA embeddings
+	PC3. r=0.19. 
+	
+RCMB56-ht, ecDNA2
+ z-score vs ATAC embeddings
+	PC9. r=-0.40. Relatively strong.
+ z-score vs RNA embeddings
+	PC2. r=0.20. Again, almost all lambda >> 0 have positive values on PC2.
+	
+RCMB56-ht, ecDNA3 
+ z-score vs ATAC embeddings
+	PC1. r=-0.52. Sequencing depth.
+ z-score vs RNA embeddings
+	PC4. r=-.17. Negative.
+	
+RCMB56-pdx, ecDNA2
+ z-score vs ATAC embeddings
+	PC9. r=-0.44. If you squint?
+ z-score vs RNA embeddings
+	PC2. r=-0.28. Negative.
+	
+RCMB56-pdx, ecDNA3
+ z-score vs ATAC embeddings
+	PC1. r=-0.44. Sequencing depth.
+ z-score vs RNA embeddings
+	PC2. r=-0.21. Negative.
+	
+DISCUSSION
+- Weak correlation between ecDNA1 z-score and DNTTIP2 expression.
+- Weak correlations between some ecDNA z-scores and cell embeddings.
+- Bizarre nonlinear function relates ht ecDNAs 1 and 2 to rna pc2. 
+
+9/2/2021
+
+Clusters against ecDNA predictions
+
+BACKGROUND AND METHODS
+2021-08-31_correlate-ecDNA-status/correlate-ecDNA.ipynb
+
+I have T/F ecDNA classifications, and ~10 clusters. The appropriate statistical
+ test here is Fisher's exact or chi-sq.
+
+Chi-sq or fisher's exact? 
+ Handbook of Biological statistics says Chi-sq.
+ http://www.biostathandbook.com/small.html
+
+rcmb56-ht, ecDNA1
+chi2	p-value	dof	tbl
+(122.70641161067402,
+ 5.1707307869032215e-21,
+ 11,
+                  size  observed (%)  expected (%)
+ seurat_clusters                                  
+ 0                 712     92.837079     91.894737
+ 1                 668     84.730539     91.894737
+ 2                 527     92.789374     91.894737
+ 3                 491     91.649695     91.894737
+ 4                 378     92.857143     91.894737
+ 5                 344     98.546512     91.894737
+ 6                 307     99.022801     91.894737
+ 7                 102     79.411765     91.894737
+ 8                  97     95.876289     91.894737
+ 9                  63     85.714286     91.894737
+ 10                 57    100.000000     91.894737
+ 11                 54     87.037037     91.894737)
+
+rcmb56-ht, ecDNA2
+(54.32212918572303,
+ 1.0309151327899141e-07,
+ 11,
+                  size  observed (%)  expected (%)
+ seurat_clusters                                  
+ 0                 712     99.297753     98.894737
+ 1                 668     96.556886     98.894737
+ 2                 527     99.430740     98.894737
+ 3                 491     99.185336     98.894737
+ 4                 378     99.735450     98.894737
+ 5                 344    100.000000     98.894737
+ 6                 307     99.674267     98.894737
+ 7                 102     96.078431     98.894737
+ 8                  97    100.000000     98.894737
+ 9                  63    100.000000     98.894737
+ 10                 57    100.000000     98.894737
+ 11                 54     98.148148     98.894737)
+ 
+ rcmb56-pdx, ecDNA1
+(177.85115306787384,
+ 7.734039612624224e-29,
+ 17,
+                  size  observed (%)  expected (%)
+ seurat_clusters                                  
+ 0                1836     99.400871     98.477958
+ 1                1436     97.701950     98.477958
+ 2                 977     99.488229     98.477958
+ 3                 974     99.075975     98.477958
+ 4                 850     99.411765     98.477958
+ 5                 762     99.737533     98.477958
+ 6                 726     95.730028     98.477958
+ 7                 469     96.588486     98.477958
+ 8                 462     99.783550     98.477958
+ 9                 454     99.559471     98.477958
+ 10                393     98.982188     98.477958
+ 11                378     93.386243     98.477958
+ 12                316     98.101266     98.477958
+ 13                208     96.634615     98.477958
+ 14                186     99.462366     98.477958
+ 15                141    100.000000     98.477958
+ 16                136     95.588235     98.477958
+ 17                 71    100.000000     98.477958)
+ 
+rcmb56-pdx, ecDNA2 
+(66.00676531429008,
+ 1.038054696589301e-07,
+ 17,
+                  size  observed (%)  expected (%)
+ seurat_clusters                                  
+ 0                1836     99.945534     99.610209
+ 1                1436     99.860724     99.610209
+ 2                 977     98.259980     99.610209
+ 3                 974     99.691992     99.610209
+ 4                 850     99.764706     99.610209
+ 5                 762     99.606299     99.610209
+ 6                 726     99.586777     99.610209
+ 7                 469     99.786780     99.610209
+ 8                 462     99.134199     99.610209
+ 9                 454     99.779736     99.610209
+ 10                393    100.000000     99.610209
+ 11                378     99.735450     99.610209
+ 12                316    100.000000     99.610209
+ 13                208    100.000000     99.610209
+ 14                186     99.462366     99.610209
+ 15                141     98.581560     99.610209
+ 16                136     99.264706     99.610209
+ 17                 71    100.000000     99.610209)
+ 
+DISCUSSION
+Tests say there's significant deviation, but the effect size is very minor. 
+There are a lot of clusters here. Re-run with lower cluster number?
+Increase resolution parameter?
+
+(How do I decide what an optimal resolution is?)
