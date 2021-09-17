@@ -9,7 +9,7 @@ library(devtools)
 install_github("navinlabcode/copykat")
 
 #Step 2 preparing readcount input file
-
+## Use the seurat .Rda object that we generated from the seurat analysis?
 library(Seurat)
 file <- "/Users/AirSunita/Desktop/scRNA_project/seurat_project/rcmb56_ht/filtered_feature_bc_matrix/"
 raw <- Read10X(data.dir = file)
