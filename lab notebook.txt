@@ -483,3 +483,265 @@ There are a lot of clusters here. Re-run with lower cluster number?
 Increase resolution parameter?
 
 (How do I decide what an optimal resolution is?)
+
+9/7/2021
+
+MetaCell
+
+BACKGROUND
+We are still looking for a way to measure RNA expression of ecDNA genes against their ecDNA
+predictions. Alex suggested MetaCell:
+https://github.com/tanaylab/metacell/
+https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1812-2
+Which uses a knn-based approach to build small clusters of ~20 cells as "metacells" which
+are transcriptionally similar.
+
+METHODS
+conda activate metacell
+R
+install.packages("RSvgDevice_0.6.4.4.tar.gz", repos=NULL, type="source")
+if (!require("BiocManager")) install.packages('BiocManager') 
+BiocManager::install("remotes")
+BiocManager::install("tanaylab/metacell")
+
+Running on expanse scRNA+ATAC feature set
+/expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/2021-09-07_metacell
+Derived largely from code at:
+https://tanaylab.github.io/metacell/articles/a-basic_pbmc8k.html
+
+RESULTS
+27 metacells from 2739 high-variance features.
+Sure looks like these metacells are just defined by sequencing depth... See 
+ rcmb56-ht_KEGG_CELL_CYCLE.png heatmap.
+ 
+9/8/2021
+
+Correlation with ARHGAP29
+
+BACKGROUND
+ARHGAP29 shows as much more highly "expressed" in metacell heatmaps. Is it a better candidate
+oncogene?
+
+METHODS
+Generated correlations with ARHGAP29 to ecDNA z-scores alongside DNTTIP2
+Compared distribution of normalized UMI counts between ARHGAP29 and DNTTIP2 (seurat)
+
+RESULTS
+Almost zero correlation between ARHGAP29 and ecDNA1 z-score.
+ARHGAP29 expressed at much lower absolute level than DNTTIP2.
+
+DISCUSSION
+What is going on with overall single cell expression distributions?
+Could be that the heatmaps are not sample- and gene-normalized.
+
+
+9/10/2021
+
+Inconsistent classifications between copy-scAT and poisson permutation test
+
+BACKGROUND
+My permutation test calls much more ecDNA than copy-scAT. More sensitive test, or false positives?
+Jill suggested I visually examine cells which copy-scAT classifies as ecDNA- and I classify as
+ ecDNA+.
+ 
+METHODS
+bigwigs generated on cluster at /expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/bigwig/
+igv session at ~/Documents/Mesirov/scRNA+ATAC/2021-08-27_Kazachkova/bigwig/RCMB56-pdx/
+
+RESULTS
+It's noisy data, and the signal is there but not glaringly obvious. By visual examination, all F/T
+ cells I randomly selected have enriched scATAC-seq reads at the known ecDNA1 location; and enrichment
+ is comparable, but perhaps slightly less, than T/T cells by comparison.
+ 
+9/10/2021
+
+nCounts_RNA threshold
+
+BACKGROUND
+Seurat recommends nCount_RNA > 1000 in its tutorials, but many of the RCMB56-ht cells have between 
+ 100 and 1000 UMIs. Is there good reason to keep these?
+
+METHODS
+Literature search.
+
+RESULTS
+
+Harvard Chan Bioinformatics Core: https://hbctraining.github.io/scRNA-seq/lessons/04_SC_quality_control.html
+ "The UMI counts per cell should generally be above 500, that is the low end of what we expect. 
+ If UMI counts are between 500-1000 counts, it is usable but the cells probably should have been 
+ sequenced more deeply."
+
+UCD/UCSF: https://ucdavis-bioinformatics-training.github.io/2019-single-cell-RNA-sequencing-Workshop-UCD_UCSF/scrnaseq_analysis/scRNA_Workshop-PART2.html
+ "We use the information above to filter out cells. Here we choose those that have percent 
+  mitochondrial genes max of 10% and unique UMI counts under 20,000 or greater than 500."
+ 
+Seurat Guided Clustering Tutorial
+ "We filter cells that have unique feature counts over 2,500 or less than 200
+ We filter cells that have >5% mitochondrial counts"
+
+Seurat Weighted Nearest Neighbor Analysis
+"pbmc <- subset(
+  x = pbmc,
+  subset = nCount_ATAC < 7e4 &
+    nCount_ATAC > 5e3 &
+    nCount_RNA < 25000 &
+    nCount_RNA > 1000 &
+    percent.mt < 20
+)"
+
+Babraham Institute: https://www.bioinformatics.babraham.ac.uk/training/10XRNASeq/seurat_workflow.html
+subset(
+  data,
+  nFeature_RNA>750 & 
+    nFeature_RNA < 2000 & 
+    percent.MT < 10 & 
+    Percent.Largest.Gene < 20
+) -> data
+
+BaRC Whitehead Institute for Biomedical Research: http://barc.wi.mit.edu/education/hot_topics/scRNAseq_2020/SingleCell_Seurat_2020.html
+seurat <- subset(seurat, subset = nFeature_RNA > 350 & nFeature_RNA < 5000 & percent.mt < 10)
+
+DISCUSSION
+Many groups don't use UMI counts per cell at all; they instead prefer to threshold on number of distinct genes.
+Seurat recommends nCount_RNA > 1000, and I saw 2 workshops from reputable sources saying at least 500.
+Based on this, will adjust minimum threshold to 500.
+
+
+9/14/2021
+
+Correlate z-scores of ecDNAs 1 & 2
+
+METHODS
+see scRNA+ATAC/2021-08-31_correlate-ecDNA-status/correlate-ecDNA.ipynb
+
+RESULTS
+Correlation r=0.66.
+Notes:
+ Cluster 5 is exclusively high in ecDNA1.
+ Cluster 3 relatively low in both.
+ Clusters 8, 10 exclusively low in both.
+
+9/14/2021
+
+metacells and seurat clusters
+
+Which metacells correspond to which clusters, and vice-versa?
+
+METHODS
+see /scRNA+ATAC/2021-09-07_metacell/metacells_and_clusters.ipynb
+
+RESULTS
+
+cluster 0 is composed of ~26 small metacells.
+cluster 1 is composed of most of mcs 1,2,5,6,11
+cluster 2 is also composed of ~26 metacells. Much overlap with 1.
+cluster 3 has contributions from many, but the majority of mcs 7,8,9,10
+cluster 4 is mc 3
+cluster 5 is mc 13
+cluster 6 is mcs 14,15,16
+cluster 7 is mc 20
+cluster 8 is mc 17
+cluster 9 is mc 19, part of 18
+cluster 10 is mc 18
+
+TODO:
+Put metacells on that ecDNA1,2 correlation thing.
+
+9/15/2021
+
+Metacell marker genes
+
+Cluster 1 markers:
+	PLCG2 - microglia and granules https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6359863/
+	AL627171 - No info
+	LINC0063 - Exosomal oncogene.
+	MTRNR2L1 - No data
+Cluster 3 - no markers
+Cluster 4:
+	EPHA6 - "hippocampus, various regions of the cortex, and retina" https://www.sciencedirect.com/science/article/pii/S0304394008004722?casa_token=Dx2s2xGdBtYAAAAA:7zrlDl9ptLhTxwj6Hin0ZPbjCh9hUAEbrWUfKB6ypjUeOK2jXdZwMCAlBAJ0JXKgPk8Owha6Uos#bib15
+Cluster 5:
+	RNF220 - SHH MB marker. https://journals.biologists.com/dev/article/147/21/dev188078/226332/RNF220-is-required-for-cerebellum-development-and
+	CASC15 - Oncogene, downregulates PDCD4. Rercruits EZH2 for H3K27 trimethylation at PCDC4 promoter. https://cellandbioscience.biomedcentral.com/articles/10.1186/s13578-018-0240-4
+	DCC - spermatids https://www.proteinatlas.org/ENSG00000187323-DCC/celltype.
+		Tumor suppressor, binds netrin-1, axonal guidance. https://www.nature.com/articles/27441
+Cluster 6:
+	CCND3 - Cell cycle. Binds CDK4/5. Probable oncogene.
+	FKBP5 - Stress response. glucocorticoid receptor pathway. hippocampus. https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0016883
+	ARHGAP15 - Immune cell marker. https://www.proteinatlas.org/ENSG00000075884-ARHGAP15/celltype
+	DPYD - Immune cells, especially Kupffer cells. https://www.proteinatlas.org/ENSG00000188641-DPYD/celltype
+		OPC marker (Sunita's table)
+	PLXDC2 - Immune, brain and undifferentiated cells. https://www.proteinatlas.org/ENSG00000120594-PLXDC2/celltype
+		Neuronal differentiation signal: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0014565
+		"Endothelial cells of tumor stroma, NPCs, and PSCs. https://www.liebertpub.com/doi/abs/10.1089/mab.2019.0050?casa_token=2_TksadeK6gAAAAA:Ql-V8XJUK2zu043QQ63zMRSrCJ7X9qbRZ2YzBpejPRTWr48K0gT1LqAqeOfDa2AqBl-Asc-SijAy
+	FRMD4A (with cluster 8) - tumor marker?
+	LRMDA - epithelial and immune cells https://www.proteinatlas.org/ENSG00000148655-LRMDA/celltype
+Cluster 7:
+	PCDH9 - oligodendrocyte marker. Sunita's table.
+	MBP - oligodendrocyte marker. Sunita's table.
+	CTNNA3 (with cluster 9): Tumor suppressor, WNT pathway?
+	PPP2R2B (with cluster 9): brain and spermatids https://www.proteinatlas.org/ENSG00000156475-PPP2R2B/celltype
+		WNT pathway agonist https://link.springer.com/content/pdf/10.1007/s13353-015-0312-7.pdf
+	Also high in RNF220, DPYD
+Cluster 8:
+	INPP4B - No tissue specificity, PI3K pathway. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3248162/
+	SYN3 - HPA says spermatids. Neuronal gene. Synaptic vesicle protein.
+	KCNMA1 - Calcium channel, Neuronal. https://www.proteinatlas.org/ENSG00000156113-KCNMA1/celltype
+		Oncogene.
+	FRMD4A
+Cluster 9:
+	NPAS3 - Developmental brain. Neuronal PAS domain protein 3 -> neurons marker?
+	GRIA1 - Neuronal marker (Sunita's table). Glutamate receptor.
+		Neurons and glial cells https://www.proteinatlas.org/ENSG00000155511-GRIA1/celltype
+Cluster 10:
+	DSCAM - OPC (Sunita's table)
+		Developmental brain.
+	TNR - OPC (Sunita's table).
+		Cancer stem cell marker? https://pubs.acs.org/doi/abs/10.1021/pr5008653 https://link.springer.com/article/10.1186/s12935-020-01188-w
+		Co-expressed with Gli1, SMO
+	
+DISCUSSION
+Cluster 1: microglia/granule-like?
+Cluster 5: Tumor
+MC 11: RBCs
+Cluster 6: TAMs, CSCs?
+Cluster 7: Oligodendrocyte-like tumor cells
+Cluster 8: Neuronal-like
+Cluster 9: Neuronal/glial-like?
+Cluster 10: OPC-like
+
+9/15/2021
+
+KMT2E, aka MLL5
+
+MLL5 Orchestrates a Cancer Self-Renewal State by Repressing the Histone Variant H3.3 and Globally Reorganizing Chromatin
+MLL5 (KMT2E): structure, function, and clinical relevance
+	CD domain binds p53 tetramer!
+	
+DISCUSSION
+Add MLL5 to manuscript.
+
+9/15/2021
+
+NB: Correlated KMT2E against ecDNA2.
+ rcmb56-ht, ecDNA1 vs DNTTIP2 -- r=0.29
+ rcmb56-ht, ecDNA2 vs KMT2E ---- r=0.42
+ rcmb56-pdx, ecDNA1 vs DNTTIP2 - r=0.48
+ rcmb56-pdx, ecDNA2 vs KMT2E --- r=0.57
+
+Correlate ecDNA z-scores to gene expression, aggregated at metacell level.
+
+RESULTS
+
+rcmb56-ht, ecDNA1 vs DNTTIP2.
+Outliers in both distributions, so Pearson invalid.
+SpearmanrResult(correlation=0.47579737335834904, pvalue=0.0019152445344766435)
+High values metacells 11, 12, 13
+
+rcmb56-ht, ecDNA2 vs KMT2E.
+SpearmanrResult(correlation=0.24709193245778616, pvalue=0.12425968094198284)
+High values metacells 11, 12, 13
+
+DISCUSSION
+Spearman correlation present but insignificant. Pearson has outliers but outliers are high 
+on both axes so they don't deviate much from the line of best fit. Pearson ok then?
+
