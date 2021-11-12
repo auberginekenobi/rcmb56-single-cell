@@ -1,0 +1,112 @@
+library(dplyr)
+library(ggplot2)
+library(EnsDb.Hsapiens.v86)
+library(Seurat)
+library(Signac)
+library(repr)
+#sessionInfo()
+
+#sample_name <- "rcmb56-ht"
+sample_name <- "rcmb56-pdx"
+
+if (sample_name == 'rcmb56-ht'){
+    file = "../RCMB56-ht/cellranger-2.0.0/outs/filtered_feature_bc_matrix"
+    frag.file <- "../RCMB56-ht/cellranger-2.0.0/outs/atac_fragments.tsv.gz"
+} else if (sample_name == 'rcmb56-pdx'){
+    file <- "../RCMB56-pdx/RCMB56-pdx/outs/filtered_feature_bc_matrix"
+    frag.file <- "../RCMB56-pdx/RCMB56-pdx/outs/atac_fragments.tsv.gz"
+}
+tx_data <- Read10X(data.dir = file)
+
+# extract RNA and ATAC data
+rna_counts <- tx_data$`Gene Expression`
+atac_counts <- tx_data$Peaks
+rm(tx_data)
+
+# Create Seurat object
+seuratobj <- CreateSeuratObject(counts = rna_counts)
+seuratobj[["percent.mt"]] <- PercentageFeatureSet(seuratobj, pattern = "^MT-")
+
+# Now add in the ATAC-seq data
+# we'll only use peaks in standard chromosomes
+grange.counts <- StringToGRanges(rownames(atac_counts), sep = c(":", "-"))
+grange.use <- seqnames(grange.counts) %in% standardChromosomes(grange.counts)
+atac_counts <- atac_counts[as.vector(grange.use), ]
+annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
+seqlevelsStyle(annotations) <- 'UCSC'
+genome(annotations) <- "hg38"
+chrom_assay <- CreateChromatinAssay(
+   counts = atac_counts,
+   sep = c(":", "-"),
+   genome = 'hg38',
+   fragments = frag.file,
+   min.cells = 10,
+   annotation = annotations
+ )
+seuratobj[["ATAC"]] <- chrom_assay
+
+message("Subsetting cells by qc thresholds...")
+
+# QC thresholds based on qc plot
+if (sample_name == 'rcmb56-ht'){
+    seuratobj <- subset(x = seuratobj, subset = 
+                        nCount_ATAC < 7e4 &
+                        nCount_ATAC > 1e3 &
+                        nCount_RNA < 25000 &
+                        nCount_RNA > 500 &
+                        percent.mt < 10
+        )
+} else if (sample_name == 'rcmb56-pdx'){
+    seuratobj <- subset(x = seuratobj, subset =
+                        nCount_ATAC < 7e4 &
+                        nCount_ATAC > 1e3 &
+                        nCount_RNA < 25000 &
+                        nCount_RNA > 1e3 &
+                        percent.mt < 10
+        )
+    # get only human cells.
+    xenocell_human_barcodes_file <- "../2021-11-01_xenocell/cellular_barcodes.txt"
+    human_barcodes <- read.delim(xenocell_human_barcodes_file, header=FALSE, sep='\n')
+    human_barcodes <- human_barcodes$V1
+    human_barcodes <- paste0(human_barcodes,"-1")
+    seuratobj <- subset(x=seuratobj,cells=human_barcodes)
+    rm(human_barcodes)
+}
+#ht - 4473 -> 2986 cells
+#pdx - 12869 -> 10400 cells
+
+message("Dimensionality reduction on RNA...")
+
+# Dimensionality reduction on RNA data
+DefaultAssay(seuratobj) <- "RNA"
+seuratobj <- SCTransform(seuratobj, return.only.var.genes = TRUE, verbose = FALSE) 
+seuratobj <- RunPCA() %>% RunUMAP(dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_')
+
+#seuratobj <- SCTransform(seuratobj, return.only.var.genes = FALSE, verbose = FALSE) %>% RunPCA() %>% RunUMAP(dims = 1:50, reduction.name = 'umap.rna', reduction.key = 'rnaUMAP_')
+
+message("Dimensionality reduction on ATAC...")
+
+# Dimensionality reduction on ATAC data 
+DefaultAssay(seuratobj) <- "ATAC"
+seuratobj <- RunTFIDF(seuratobj)
+seuratobj <- FindTopFeatures(seuratobj, min.cutoff = 'q0')
+seuratobj <- RunSVD(seuratobj)
+seuratobj <- RunUMAP(seuratobj, reduction = 'lsi', dims = 2:50, reduction.name = "umap.atac", reduction.key = "atacUMAP_")
+# check PCs against sequencing depth
+options(repr.plot.width = 7, repr.plot.height = 7)
+DepthCor(seuratobj,reduction='lsi')
+
+# WNN multimodal clustering
+seuratobj <- FindMultiModalNeighbors(seuratobj, reduction.list = list("pca", "lsi"), dims.list = list(1:50, 2:50))
+seuratobj <- RunUMAP(seuratobj, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+seuratobj <- FindClusters(seuratobj, graph.name = "wsnn", algorithm = 3, verbose = FALSE)
+
+# Plot UMAPs
+options(repr.plot.width = 16, repr.plot.height = 6)
+p1 <- DimPlot(seuratobj, reduction = "umap.rna", label = TRUE, label.size = 5, repel = TRUE) + ggtitle("RNA")
+p2 <- DimPlot(seuratobj, reduction = "umap.atac", label = TRUE, label.size = 5, repel = TRUE) + ggtitle("ATAC")
+p3 <- DimPlot(seuratobj, reduction = "wnn.umap", label = TRUE, label.size = 5, repel = TRUE) + ggtitle("WNN")
+p1 + p2 + p3 & NoLegend() & theme(plot.title = element_text(hjust = 0.5))
+
+# Save relevant objects and data tables
+saveRDS(seuratobj,paste(sample_name,"_seuratobj.rds",sep=""))

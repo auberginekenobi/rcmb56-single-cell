@@ -659,6 +659,7 @@ Cluster 1 markers:
 Cluster 3 - no markers
 Cluster 4:
 	EPHA6 - "hippocampus, various regions of the cortex, and retina" https://www.sciencedirect.com/science/article/pii/S0304394008004722?casa_token=Dx2s2xGdBtYAAAAA:7zrlDl9ptLhTxwj6Hin0ZPbjCh9hUAEbrWUfKB6ypjUeOK2jXdZwMCAlBAJ0JXKgPk8Owha6Uos#bib15
+		Panglaodb - germ cells??
 Cluster 5:
 	RNF220 - SHH MB marker. https://journals.biologists.com/dev/article/147/21/dev188078/226332/RNF220-is-required-for-cerebellum-development-and
 	CASC15 - Oncogene, downregulates PDCD4. Rercruits EZH2 for H3K27 trimethylation at PCDC4 promoter. https://cellandbioscience.biomedcentral.com/articles/10.1186/s13578-018-0240-4
@@ -744,4 +745,385 @@ High values metacells 11, 12, 13
 DISCUSSION
 Spearman correlation present but insignificant. Pearson has outliers but outliers are high 
 on both axes so they don't deviate much from the line of best fit. Pearson ok then?
+
+9/20/2021
+
+Ashwyn
+
+singleR
+Panglaodb
+Scrublet
+
+Velocity and pseudotime not terribly effective.
+
+
+9/20/2021
+
+Scrublet
+
+BACKGROUND
+Ashwyn recommends running a specific doublet detection algorithm. Scrublet is well-known, so I started here.
+
+RESULTS
+Scrublet is unable to detect doublets in either RCMB56 sample.
+Histograms are unimodal.
+
+DICSUSSION
+This result makes sense. From an issue on the github, "scrublet histogram is not bimodal"
+ "...the simulated doublet score distribution is bimodal only if the simulated doublets include an appreciable 
+ fraction of each of the two "types" of doublets, neotypic (high scoring, distinct from singlets) and embedded 
+ (low scoring, similar to singlets). The fact that your simulated doublet score distribution only has a left 
+ mode suggests that for your data and method of analysis (in this case, the default preprocessing used by 
+ scrub_doublets()), most doublets are embedded and therefore not detectable. This typically happens when 
+ there isn't much complexity in the sample, i.e., most random pairs of cells are similar to each other 
+ and create doublets that resemble themselves."
+We know most of these cells look like tumor; and so we are unlikely to have neotypic and very likely to have embedded
+doublets. Furthermore, a hypothetical doublet of 2 ecDNA+ cells probably looks a lot like 1 cell with more ecDNA...
+
+9/24/2021
+
+copyKAT
+
+METHODS
+conda install -c r r-base r-devtools
+conda install -c conda-forge r-seuratobject
+library(devtools)
+install_github("navinlabcode/copykat")
+
+10/2/2021
+
+Cell type annotations
+
+METHODS
+Take FindAllMarkers output, fdr q<0.05, run overlap with MSigDB C8.
+NB: max 2038 genes allowed in query.
+
+RESULTS
+Cluster 0 (n=3338) - GABAergic neurons, neuroblast GABAergic, dopaminergic neurons
+Cluster 1 (n=390) - GABAergic neurons, gastric immune cells, kidney, neuroblast GABAergic, serotonergic neurons
+Cluster 2 (n=112) - epithelial
+Cluster 3 () - GABAergic neurons, gastric immune cells, kidney, neuroblast GABAergic, serotonergic neurons, pancreas beta cells,
+	dopaminergic neurons, mediolateral neuroblasts...
+Cluster 4 (n=385) -  GABAergic neurons, neuroblast GABAergic, dopaminergic neurons...
+Cluster 5 (n>2038) - GABAergic neurons, neuroblast GABAergic, dopaminergic neurons, mesenchymal pancreatic stroma
+Cluster 6 (n=1612) - microglia
+Cluster 7 (n=1362) - oligodendrocytes, manno midbrain neurotypes
+Cluster 8 (n=1805) - manno midbrain neurotypes
+Cluster 9 (n=1061) - radial glial cells, astrocytes, manno midbrain neurons, opcs.
+Cluster 10 (n=831) - opcs, manno midbrain neurons, radial glial cells, astrocytes
+
+10/3/2021
+
+McKenzie brain cell type markers
+
+McKenzie et al 2018 do a meta-analysis to assemble expression markers of six cell types in the brain:
+ astrocytes, endothelial cells, microglia, neurons, oligodendrocytes, and OPCs.
+ This included the top 100 most co-cited (gene + cell type) in PubMed abstracts, and one vs each DE.
+
+I asked which McKenzie brain cell type was most found among the differential genes of each cluster (Seurat).
+
+Pubmed most co-cited
+cluster 0: neu
+cluster 1: neu
+cluster 2: neu
+cluster 3: neu
+cluster 4: neu
+cluster 5: neu
+cluster 6: mic
+cluster 7: oli
+cluster 8: neu
+cluster 9: ast
+cluster 10: opc
+
+Specific DE
+cluster 0: neu
+cluster 1: neu
+cluster 2: oli
+cluster 3: neu
+cluster 4: neu
+cluster 5: neu
+cluster 6: mic
+cluster 7: oli
+cluster 8: neu
+cluster 9: ast
+cluster 10: opc
+
+10/4/2021
+
+Plot expression of known biomarkers for putative cell types
+
+METHODS
+2021-10-02_marker-annotation/2021-10-04_plot-marker-gene-expression.ipynb
+
+RESULTS
+Oddly, many known biomarkers aren't expressed much in any cells at all. Could be a problem of using FC
+ as an ordering metric. Anyway,
+
+Cell type markers
+ MBP - Oligodendrocyte marker. Robustly expressed in cluster 7.
+ CD86 - marker for antigen-presenting cells: macrophage, dendritic cells, microglia. Subset of cluster 6.
+ PTPRC - aka CD45. Canonical marker for all differentiated immune cells. Cluster 6.
+ NDRG2 - Astrocyte marker. Cluster 9.
+ TNR - OPC marker. Robustly expressed in cluster 10.
+ PDGFRA - OPC marker. cluster 10.
+
+A few SHH MB genes:
+ GLI2 - Overexpressed in cluster 5, one cell in 9?
+ SMO - Scattered expression cluster 5
+ DNTTIP2 - Cluster 5
+ KMT2E - strong in cluster 5, scattered in 0-4.
+
+DISCUSSION
+These could easily be a supplemental figure. Also, 5 is high in both ecDNA z-scores, and 6-10 are low. 
+Going to define nontumor cells as those from clusters 6-10 with low ecDNA1 and 2 z-scores.
+
+10/5/2021
+
+There are actually no cells in clusters 6, 7, 9, and 10 which are predicted ecDNA- for all 3. 
+
+Across all clusters, the number of cells which are ecDNA- for all is 17. I must have been thinking of an 
+older version of the analysis when I reported that 85% of cells are ecDNA+ in the human tumor; I think 
+most of these 15% were cells were low-quality according to seurat.
+ Most likely explanation - I have too high a FPR when calling ecDNA.
+ Second most-likely explanation - all but 17 cells in rcmb56-ht have ecDNA.
+This is frustrating and sets us back a bit. I'm going to review the ecDNA hypotheses for cells in these 
+seurat clusters to see if I really think they all look like ecDNA.
+
+10/5/2021
+
+Took a look at the rcmb56-ht cluster 6 bigwig coverage tracks. For most there is no evidence of ecDNA.
+A few clear ecDNA+ cells, and some ambiguous coverage tracks.
+
+10/6/2021
+Generated bw tracks of clusters 6,7,9,10. 
+/expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/bigwig/RCMB56-ht
+
+10/6/2021
+
+A new null for ecDNA detection
+
+BACKGROUND
+Many of the cells in cluster 6 show limited or no evidence of ecDNA enrichment, yet they are all classified
+as ecDNA+. One hypothesis for this is that I sample from essentially the entire genome, using the GRCh38 
+regions in the AA data repo, which exclude centromeres, telomeres, and little else. 
+
+A better background might be: all regions detected in ecDNA in other SHH? MB samples.
+
+METHODS
+Bed files are available at C:\Users\ochapman\Documents\Mesirov\medullo_ecDNA\amplified-intervals-bed\cohort
+/home/ochapman/Documents/Mesirov/scRNA+ATAC/2021-10-07_better-background
+
+RESULTS
+Total genomic region length of MB patient tumors and pdx: 
+ 161562466, 162Mbp
+
+
+10/6/2021
+
+Correlate z-scores to gene expression
+Log-scaled z-scores, switched from scatterplot to displot
+
+ rcmb56-ht, ecDNA1 vs DNTTIP2 -- r=0.26
+ rcmb56-ht, ecDNA2 vs KMT2E ---- r=0.37
+ rcmb56-pdx, ecDNA1 vs DNTTIP2 - r=0.46
+ rcmb56-pdx, ecDNA2 vs KMT2E --- r=0.68
+ 
+10/8/2021
+Zero-inflated poisson model:
+https://towardsdatascience.com/an-illustrated-guide-to-the-zero-inflated-poisson-model-b22833343057
+
+10/11/2021
+
+SingleR
+
+RCMB56-ht results - mostly astrocytes, some neurons.
+Cluster 6 - still immune cells
+Clusters 0-5 - neurons and astrocytes, endothelial in 5.
+Cluster 8 - astrocyte
+
+
+10/13/2021
+
+Better background
+
+BACKGROUND
+Previously, I had estimated p-values by comparing the ecDNA mean sampling density to that of 1000
+ random regions across the genome. Jens pointed out earlier that this may be too weak a null, since
+ it is known that ecDNA comes from gene-dense regions. I also found that nearly no cells were ecDNA- 
+ according to this approach.
+ 
+GOAL
+Sample from only gene-dense regions
+
+METHODS
+ Convert all ecDNA bed files to hg38
+ Agglomerate, use this as null
+ 
+* NB. Initially, I was getting much much lower p-values using this approach, which should be impossible.
+ This led me to find 2 bugs in my code:
+   I was not dividing by ecDNA length
+   featurecounts by default only assigns a read to one of overlapping regions.
+
+RESULTS
+
+genome bg:
+ 272 ecDNA- cells (9%)
+ by subgroup:
+  321 / 2986 ecDNA1+
+  2693 / 2986 ecDNA2+
+  0 / 2986 ecDNA3+
+ecdna bg:
+ 2703 ecDNA- cells (91%)
+ by ecDNA:
+  263 / 2986 ecDNA1+
+  126 / 2986 ecDNA2+
+  0 / 2986 ecDNA3+
+ 
+
+In cluster 6, 
+ CCAACCCGTTTGGGCG-1	< clear TP
+ CTTGAATCACAAGCCT-1	< clear TP
+ GCCTCAAAGGAATAAC-1	< probable TP
+ TCTAACCGTGTTGCAA-1	< probable FP
+are classified ecDNA1+ by both approaches. In addition the ecDNA-only classifier calls
+ GAAAGCCAGTAACGAG-1	< probable TP
+ 
+Furthermore, in cluster 6,
+ CCAACCCGTTTGGGCG-1	
+ CTTGAATCACAAGCCT-1	
+ GCCTCAAAGGAATAAC-1
+are classified ecDNA2+ by both approaches. An additional 48 are classified ecDNA+ by genome.
+
+ecDNA1 by cluster:
+(genome)
+ cluster 0.0 ecDNA+: 49 / 771 (6%)
+ cluster 1.0 ecDNA+: 45 / 523 (9%)
+ cluster 2.0 ecDNA+: 20 / 464 (4%)
+ cluster 3.0 ecDNA+: 22 / 422 (5%)
+ cluster 4.0 ecDNA+: 13 / 350 (4%)
+ cluster 5.0 ecDNA+: 154 / 172 (90%)
+ cluster 6.0 ecDNA+: 4 / 79 (5%)
+ cluster 7.0 ecDNA+: 3 / 72 (4%)
+ cluster 8.0 ecDNA+: 1 / 53 (2%)
+ cluster 9.0 ecDNA+: 8 / 44 (18%)
+ cluster 10.0 ecDNA+: 2 / 36 (6%)
+(ecdna)
+ cluster 0.0 ecDNA+: 36 / 771 (5%)
+ cluster 1.0 ecDNA+: 33 / 523 (6%)
+ cluster 2.0 ecDNA+: 13 / 464 (3%)
+ cluster 3.0 ecDNA+: 16 / 422 (4%)
+ cluster 4.0 ecDNA+: 9 / 350 (3%)
+ cluster 5.0 ecDNA+: 139 / 172 (81%)
+ cluster 6.0 ecDNA+: 5 / 79 (6%)
+ cluster 7.0 ecDNA+: 3 / 72 (4%)
+ cluster 8.0 ecDNA+: 1 / 53 (2%)
+ cluster 9.0 ecDNA+: 7 / 44 (16%)
+ cluster 10.0 ecDNA+: 1 / 36 (3%)
+
+DISCUSSION
+I do not think there is evidence to classify these additional 48 as ecDNA+, but it's quite 
+difficult to tell because the regions are so short.
+This recommends the ecDNA background. 
+Also, I asked 10x support whether atac_possorted_bam is deduplicated.
+
+NB. Need to compare my results to copy-scAT again in IGV. Previously, we had thought that
+copy-scAT called many false negatives based on visual inspection. Now my own test is telling
+me no evidence of ecDNA??
+
+10/18/2021
+
+Deduplicating reads
+
+GOAL
+Found out from 10x that the bam file I've been using (atac_possorted_bam.bam) is not 
+ deduplicated. Need to do this myself, it seems.
+There are 2 obvious approaches: one is to subset the bam into each cell, and run picard 
+ markduplicates on each. The other is to separate atac_fragments.tsv.gz by barcode. I have
+ opted for the second approach.
+ 
+METHODS
+See /expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/2021-10-18_fragments-tsv-gz
+ * NB need to check if it's a valid barcode. 500k raw barcodes, 4k filtered barcodes.
+ 
+RESULTS
+See 2021-11-01 update.
+Of note, once I use the deduplicated fragments, the backgrounds return pretty much the same
+ results (for ht and pdx). 
+
+
+11/2/2021
+
+ecDNA classification evaluation
+
+GOAL
+How confident should I be in this latest iteration?
+
+
+RESULTS
+# how different are the genome and ecDNA backgrounds?
+	Very little difference between the two backgrounds
+	
+# how concordant are my classifications with copy-scAT?
+	Low concordance for both. Eg ht, I call 263 cells ecDNA1+. Copy-scAT agrees with just 84 of those.
+	The distribution of my classes to copyscat classes looks almost random, except for a few (I get all LQ cells)
+	
+# How would I classify the discordant examples?
+	* Plot bw in igv.
+	true in both: 84 cells. These look like ecDNA.
+	tf (true in permutation test, false in cs): 116 cells. With few exceptions, these also look ecDNA+.
+	ft (false in permutation test, true in cs): 11 cells. 2 with obvious ecDNA, ATTGCGCCATTGTGGC-1.bw and TGTTCCTCACCTCACC-1.bw
+		Misclassified ft cells have significant p-values, but significance lost upon multiple hypothesis correction.
+# How well do they correlate to marker expression?
+	Performed 2 tests: gene expression vs ecDNA classification, and gene expression vs z-score
+	permutations, ht, dnttip2:
+		Cohen's d: 1.202969949701343
+		MannwhitneyuResult(statistic=247887.0, pvalue=7.735823625300748e-17)
+	copyscat, ht, dnttip2:
+		Cohen's d: 1.2753838794768697
+		MannwhitneyuResult(statistic=124872.5, pvalue=6.481381382686321e-15)		
+	permutations, ht, kmt2e:
+		Cohen's d: 3.239386980320031
+		MannwhitneyuResult(statistic=73882.0, pvalue=1.5545189553872433e-28)
+	copyscat, ht, dnttip2:
+		Cohen's d: 2.362081272384823
+		MannwhitneyuResult(statistic=54414.5, pvalue=9.196600827169476e-11)
+	permutations, pdx dnttip2:
+		Cohen's d: 0.700528492296191
+		MannwhitneyuResult(statistic=1229044.5, pvalue=2.4651271871945223e-93)
+	copyscat, pdx, dnttip2:
+		Cohen's d: 0.791191739205213
+		MannwhitneyuResult(statistic=5025388.0, pvalue=6.634138431916924e-200)
+	permutations, pdx, kmt2e:
+		Cohen's d: 1.164068525493985
+		MannwhitneyuResult(statistic=570647.0, pvalue=0.0)
+	copyscat, pdx, kmt2e
+		Cohen's d: 0.868610961218862
+		MannwhitneyuResult(statistic=4688886.5, pvalue=4.141271893894807e-275)
+		
+	Both classifiers have strong association with gene expression.
+	
+	gene expression vs z-score
+		ht: weak association for both ecDNAs
+		pdx: strong association for both ecDNAs.
+
+# How do they distribute by seurat cluster?
+	Cluster 5 enriched for both ecDNA.
+	
+	
+11/12/2021
+
+Xenocell
+
+GOAL
+Filter mouse cells.
+
+METHODS
+Got xenocell working, see /expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/2021-11-01_xenocell. 
+ The important file is graft/barcodes.txt, which lists all barcodes with >90% of uniquely mapping reads 
+ mapped to the human genome. Of interest also is this plot showing the distribution of reads uniquely 
+ mapping to mouse or human. It looks like we have many barcodes which include a substantial portion of 
+ reads from both genomes. These could be doublets, or RNA leakage, or maybe extracellular ecDNA??
+ 
+Updated 2021-08-29_seurat/seurat_preprocess_and_cluster.ipynb to filter for human cells.
+
 

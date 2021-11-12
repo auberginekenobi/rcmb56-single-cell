@@ -8,6 +8,14 @@ P85/
 # large data
 *.xlsx
 *.Rda
+*.tsv
+*.bw
+*.csv
+*.summary
+*.xml
+*.bed
+2021-11-01_xenocell/cellular_barcodes.txt
+2021-08-29_seurat/rcmb56-ht_markers.tsv
 
 # images
 *.svg
