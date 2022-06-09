@@ -1127,3 +1127,341 @@ Got xenocell working, see /expanse/lustre/projects/csd677/collab/projects/scRNA+
 Updated 2021-08-29_seurat/seurat_preprocess_and_cluster.ipynb to filter for human cells.
 
 
+11/16/2021
+
+Algorithms for inferring clonal history from scATAC-seq.
+
+GOAL
+Hi Sunita,
+I've been thinking about where our single-cell study is headed. Our current hypothesis is that the cells in 
+ the PDX seem to be a subset of the cell genotypes present in the ht. I think based on my scATAC-seq analysis 
+ that ht cluster 5 is ecDNA-high and all of the PDX cells seem to be ecDNA+. You're currently running FindSubCluster 
+ to see if differential genes in the cluster 5 cell subgroups correspond to those in the PDX cell clusters. 
+ It's unfortunate that we weren't able to transform these two samples to occupy the same feature space, as we 
+ would have been able to see whether the pdx and ht transcriptomes and/or accessible-omes overlap in high-dimensional space.
+I think a great alternate way to test this hypothesis quite definitively is to try to perform clonal lineage 
+ tracing from the mutational profiles of the single cells, similarly to the (Penter, et al, 2020) paper discussed 
+ in journal club today. In their methods, they use a tool called mgatk for this analysis. I looked up a few other
+ competing tools in the field (EMBLEM and MQuad), but neither look as well-maintained as the mgatk code.
+What do you think?
+O
+
+MQUAD
+	Clonal variant calling and phylogeny inference from mitochondrial reads.
+	https://www.biorxiv.org/content/10.1101/2021.03.27.437331v1.full
+	https://github.com/single-cell-genetics/MQuad
+	Requires preprocessing and postprocessing from packages I've never heard of...
+	
+mgatk
+	Massively parallel single-cell mitochondrial DNA genotyping and chromatin profiling
+	https://www.nature.com/articles/s41587-020-0645-6
+	https://github.com/caleblareau/mgatk
+	github wiki includes install and example! Dependencies look ok for Expanse.
+	
+EMBLEM
+	https://elifesciences.org/articles/45105
+	https://github.com/ChangLab/ATAC_mito_sc
+	Looks like a ton of work to get running on Expanse.
+	https://github.com/ChangLab/EMBLEM
+	
+DISCUSSION
+Sunita will run mgatk.
+
+11/23/2021
+
+Revisiting the gaussian mixture hypothesis.
+
+More of a gamma mixture really. Plotted z-scores of ecDNA1 as a histogram. Could be a zero-inflated gamma,
+or could be a mixture of gammas??
+See 2021-11-23_zscore-distribution
+
+11/29/2021
+
+F2: get rid of g-h (z-scores against each other)
+F2a: add track for an ecDNA- cell.
+F2b,c - label cell clusters.
+
+11/29/2021
+
+TODO
+List of ht-pdx pairs with ecDNA to ask rob to grow.
+
+RCMB25 - no ecDNA
+RCMB28 - MYC
+RCMB69 - KRAS
+
+12/13/2021
+
+New cluster markers, after xenocell and doublet removal
+
+3 - High mitochondrial activity. See https://kb.10xgenomics.com/hc/en-us/articles/360001086611-Why-do-I-see-a-high-level-of-mitochondrial-gene-expression-
+6 - high-ecDNA tumors. GLI2, DNTTIP2, KMT2E, MEST
+7 - Hematopoetic cells. PTPRC, CD53
+8 - oligodendrocytes. PLP1, MOBP, MOG.
+9 - neurons (inhibitory?). GAD2, TFAP2B, SYN3, SIAH3, SORCS3, GRIA3
+10 - ??. GRIA1, DAO, FGFR3, WDR49, ADCY2, HIF3A
+11 - OPCs. PDGFRA, TNR
+
+Thanks proteinatlas.org, mousebrain.org
+
+
+12/14/2021
+
+Batch correction using Seurat v3
+# https://satijalab.org/seurat/articles/integration_introduction.html#performing-integration-on-datasets-normalized-with-sctransform-1
+
+RESULTS
+IntegrateData doesn't do a great job; the cells occupy the same low-dimensional space, but
+ there's not a lot of overlap in the UMAP representation; the plot looks like a checkerboard
+ with clumps of ht cells in the spaces between pdx cells. 
+ But, it's better than cellranger aggr or Harmony.
+
+That said, the results make some kind of sense; ht clusters 7 (immune) and 8 (oligodendrocytes)
+ are entirely absent in the pdx, and 9, 10, and 11 (neuronal) occupy the periphery of the tumor blob.
+ Furthermore, it looks like cluster 6 has been distributed among the pdx cells quite nicely, whereas
+ the other ht cells form their own clusters.
+
+12/20/2021
+
+Integrated clusters, continued.
+
+METHODS
+- Integrated the two datasets using IntegrateData
+- Re-cluster on integrated data using FindNeighbors, FindClusters
+- Find markers using FindConservedMarkers (perform DE on both sets independently, then use metap to combine DE gene lists.
+	see https://hbctraining.github.io/scRNA-seq_online/lessons/09_merged_SC_marker_identification.html
+
+RESULTS
+Not terrific. density of ht cells lies outside density of pdx cells. This could be (1) because the cell populations
+ are biologically different; or (2) because integration failed.
+
+12/22/2021
+
+Conda solver speed issues
+
+Lots of people having the same issue:
+ https://github.com/bioconda/bioconda-recipes/issues/13774
+ https://github.com/conda/conda/issues/9367#issuecomment-558863143
+mamba, a project trying to avoid conda issues:
+ https://github.com/mamba-org/mamba
+Sort of helpful blog post:
+ https://www.anaconda.com/blog/understanding-and-improving-condas-performance
+
+Solution: install specific version, and do it in steps.
+ conda install -c conda-forge r-base=4.1.2
+
+12/22/2021
+
+Conos
+
+GOAL
+Alex's advice on my sample comparison problem is to integrate each cluster separately,
+and then show that the cluster 6 integration has a lower entropy than others:
+ https://www.nature.com/articles/s41592-019-0466-z
+ (see methods)
+
+METHODS
+Installed in conda env conos (local)
+
+RESULTS
+Didn't even need to integrate each cluster separately. Conos integration shows that most of the ht cells do not
+overlap the pdx, but the ecDNA+ cells (cluster 6) do. This supports our hypothesis that the ecDNA+ ht cells
+are the population that now comprise the pdx.
+http://localhost:8888/notebooks/scRNA%2BATAC/2021-12-22_conos/conos-integrate.ipynb
+
+12/29/2021
+
+ecDNA hubs drive cooperative intermolecular oncogene expression
+
+GOAL
+Howard Chang lab published their ecDNA hubs paper, and it does a lot better than
+ ours. Here I highlight some points and strategize where to go next.
+ 
+SUMMARY
+ BET bromodomains seem to tie ecDNA hubs together. JQ1 disperses them.
+ ecDNA hubs only aggregate during interphase.
+ COLO320DM contains MYC, MYC-PVT1 fusion. Fusion gene circumvents competitive PVT1 MYC binding of enhancers.
+ They have deep scRNA+ATAC-seq! (COLO320DM, COLO320HSR)
+	https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE160148
+ CRISPRi of COLO320DM failed to find enhancers with differential MYC transcription.
+ CRISPRi of SNU16 finds functional enhancers, presumably proliferation assay.
+
+DATA
+Acquired data from SRA using fasterq-dump:
+	https://edwards.flinders.edu.au/fastq-dump/
+Note that 10x recommends ATAC data be submitted as .bam, because R1, R2 and barcode fastqs all needed.
+	https://kb.10xgenomics.com/hc/en-us/articles/360024716391-What-format-of-10x-Genomics-data-should-I-submit-to-NCBI-GEO-SRA-
+ATAC fastqs are formatted according to 10x conventions:
+	https://kb.10xgenomics.com/hc/en-us/articles/360043386291-How-to-format-v1-chemistry-datasets-to-work-with-current-Cell-Ranger-versions-
+RNA fastqs are renamed for input into CellRanger:
+	https://kb.10xgenomics.com/hc/en-us/articles/115003802691-How-do-I-prepare-Sequence-Read-Archive-SRA-data-from-NCBI-for-Cell-Ranger-
+Saved to /expanse/lustre/projects/csd677/collab/public-data/2021_ecDNA_hubs/
+
+METHODS
+For scATAC, went to SRR page / data access, wget .bam file to oasis-dm-interactive.
+	https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE160148
+For scRNA, used fasterq-dump.
+
+COLO320DM atac	DONE
+COLO320DM gex	DONE
+COLO320HSRatac	DONE
+COLO320HSRgex	DONE
+
+CellRanger
+	Set up batch job:
+		/expanse/lustre/projects/csd677/collab/projects/scRNA+ATAC/COLO320DM/cellranger-arc.sbatch
+		/expanse/lustre/projects/csd677/collab/bin/cellranger-arc-2.0.0/external/martian/jobmanagers/slurm.template
+	COLO320DM DONE
+	COLO320HSR DONE
+
+Notes:
+fasterq-dump, fastq-dump takes an obscene amount of disk space somewhere, and I can't figure out where.
+	best guess at problem statement: https://www.moritzs.de/linux/thank_you_sra/
+	solutions:
+		https://standage.github.io/that-darn-cache-configuring-the-sra-toolkit.html
+		https://github.com/ncbi/sra-tools/wiki/05.-Toolkit-Configuration
+		tl;dr need to vdb-config -i to open sra settings, change the process-local location to $SCRATCH
+parallel-fastq-dump failed on my big file (COLO320HSR gex)
+A meh introduction to fastq-dump, parallel-fastq-dump, fasterq-dump: https://www.reneshbedre.com/blog/ncbi_sra_toolkit.html
+
+Seurat qc and plots
+#ht - 4473 -> 2986 cells
+#pdx - 12869 -> 10400 cells
+#COLO320DM - 4542 -> 2385 cells
+#COLO320HSR - 5536 -> 2322 cells
+ Most omissions due to high mitochondrial fraction.
+Saved to local/scRNA+ATAC/COLO320*
+
+
+1/4/2022
+
+ecdna-quant dev
+
+Development progress:
+- debugged ecdna-quant script. Finishes test case successfully.
+- All counts are zero. Not sure why. Probably wrong genome used?
+	Lol this is expected, I only included 200 reads.
+
+1/7/2022
+
+ecdna-quant on COLO320 samples.
+
+BACKGROUND
+Got COLO320DM and COLO320HSR scRNA+ATAC from the Chang paper. 
+
+METHODS
+ecDNA file from Jens - originally COLO320DM_Version2_ecDNA1_cycles_cycle1.hg19.bed
+ CrossMapped to hg38 > bedtools merge -i - -d 10
+Runs in $lukas_home/projects/scRNA+ATAC/COLO320*
+ 
+RESULTS
+All cells in both samples ecDNA+.
+
+DISCUSSION
+Looks like I'm really just capturing high copy number...
+
+
+1/13/2022
+
+rcmb56 chr3p in ecdna=quant
+
+GOAL
+Now that we think my tool is really just finding high-copy amplification at the ecDNA locus,
+ let's see if it detects a relatively low-copy amplification: isochromosome 3q in RCMB56.
+ 
+METHODS
+Duplication event for 3q appears to start at chr3:108,815,000 and end at chr3:198,295,559 (end of chromosome).
+
+1) Break this up into lots of small regions to test? or
+2) run ecdna-quant against the whole huge chr3q?
+ Chose 2 for now.
+ 
+RESULTS
+0 /4473 cells positive for chr3q amp in rcmb56-ht
+
+1/19/2022
+
+conos improvements
+
+- plotClusterStability
+
+1/24/2022
+
+Does copy number increase per cell of ecDNA between ht and pdx?
+
+BACKGROUND
+Bulk data frequently show increase in copy number between ht > pdx. Is this due to 
+increase in copy number of ecDNA per cells, or
+greater fraction of ecDNA+ cells, or both?
+
+METHODS
+2022-01-20_zscore-comparisons/compare-zscore-distributions
+
+RESULTS
+No significant difference between ecDNA1 zscores between ht and pdx.
+Significant difference between ecDNA2 z-scores, but the effect size is small and 
+it's actually in the opposite direction.
+Significantly greater variance in PDX distributions than ht.
+
+DISCUSSION
+We know already that there's a greater fraction of ecDNA+ cells in the pdx.
+This looks like there is no increase in ecDNA copy number per cell from ht to pdx.
+However, greater variance. 
+Consistent with no selection on the amount of ecDNA as long as it's >0.
+
+TODO
+Need to test if bulk ecDNA copy number increases in general ht > pdx and primary > relapse.
+
+1/28/2022
+
+Does bulk copy number of ecDNA increse in...
+ht > pdx; and/or
+primary > progressive
+
+DATA
+Crude estimation of CN values:
+
+Sample	gene	primary	progressive
+PT_FN4GEEFR	TERT	50	100
+PT_XA98HG1C	CCND2	20	60
+
+Sample	gene	ht	pdx
+rcmb56-1	DNTTIP2	 20	30
+rcmb56-2	KMT2E	10	25
+rcmb28	MYC	60	60
+med1712	BIRC3	60	60
+rcmb40	MYC	100	100
+med211	MYC	
+med1911	MYC	160	35
+rcmb69	CCND2	12	12
+
+RESULTS
+No statistics needed. for primary > progressive, indicative but not statistically significant.
+For ht > pdx, not significant.
+
+3/1/2022
+
+Alleloscope
+
+Jill asked me to look at Alleloscope: copy number and heterogeneity from single cell phasing.
+
+RESOURCES
+Tutorial https://github.com/seasoncloud/Alleloscope/tree/main/samples/SU008/scATAC
+RStudio server on WSL2: https://github.com/grst/rstudio-server-conda
+	https://support.rstudio.com/hc/en-us/articles/360049776974-Using-RStudio-Server-on-Windows-with-WSL2
+	Didn't work
+Install curl in R: Anticonf error libcurl not found 
+	solution https://stackoverflow.com/a/60878166/8133586
+Had to conda install gert
+	conda install -c conda-forge r-gert
+Had to extend timeout:
+	options(timeout=9999999)  
+	devtools::install_github("seasoncloud/Alleloscope") 
+
+Get CN segmentation of germline and tumor WGS:
+	ochapman@nrnb-head.ucsd.edu:/cellar/users/ochapman/scripts/alleloscope
+	https://github.com/seasoncloud/Alleloscope/blob/main/samples/SU008/scATAC/Gen_seg_table.md
+
+
+
+

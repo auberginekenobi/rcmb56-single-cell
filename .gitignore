@@ -1,7 +1,9 @@
-# project-specific
-RCMB56-ht/
-RCMB56-pdx/
-P85/
+# Project
+./data/
+*/out/
+
+data/
+figures/
 2021-06-23_Mariya-rotation-materials/
 2021-08-27_Kazachkova/Kazachkova_rotation_sp21/
 
@@ -14,6 +16,9 @@ P85/
 *.summary
 *.xml
 *.bed
+*.gct
+*.gmt
+*.tar.gz
 2021-11-01_xenocell/cellular_barcodes.txt
 2021-08-29_seurat/rcmb56-ht_markers.tsv
 
@@ -24,6 +29,7 @@ P85/
 
 # R
 *.rds
+*.Rhistory
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

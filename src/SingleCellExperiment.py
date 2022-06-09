@@ -7,9 +7,13 @@ class SingleCellExperiment:
     seurat_file = ""
     metacell_file = ""
     ecDNA_file = ""
+    xenocell_file = ""
+    doubletfinder_file = ""
+    ssGSEA_file = ""
     df=pd.DataFrame()
 
-    def __init__(self,barcodes_file, seurat_file=None, metacell_file=None, ecDNA_file=None):
+    def __init__(self,barcodes_file, seurat_file=None, metacell_file=None, ecDNA_file=None,
+    xenocell_file = None, doubletfinder_file=None, ssGSEA_file=None):
         self.add_barcodes(barcodes_file)
         if seurat_file != None:
             self.add_seurat(seurat_file)
@@ -17,6 +21,12 @@ class SingleCellExperiment:
             self.add_metacell(metacell_file)
         if ecDNA_file != None:
             self.add_ecDNA(ecDNA_file)
+        if xenocell_file != None:
+            self.add_xenocell(xenocell_file)
+        if doubletfinder_file != None:
+            self.add_doubletfinder(doubletfinder_file)
+        if ssGSEA_file != None:
+            self.add_ssGSEA(ssGSEA_file)
 
     def __repr__(self):
         return repr(self.df)
@@ -56,22 +66,59 @@ class SingleCellExperiment:
         mc_annot = pd.read_csv(metacell_file,sep='\t',index_col=0)
         mc_annot.columns = ['metacell_cluster']
         self.df = self.df.join(mc_annot,how='left')
+    
+    def add_xenocell(self,xenocell_file):
+        '''
+        Add xenocell classifications of host/graft.
+        See 2021-11-01_xenocell.
+        '''
+        barcodes = pd.read_csv(xenocell_file,names=['barcode']).squeeze().values
+        barcodes = map(lambda x: x+'-1',barcodes) # add -1 suffix
+        self.df["xenocell"] = self.df.index.isin(barcodes)
 
+    def add_doubletfinder(self,doubletfinder_file):
+        '''
+        TODO: add DoubletFinder annotations
+        '''
+        df = pd.read_csv(doubletfinder_file,sep='\t',index_col=0)
+        df.columns=["DoubletFinder"]
+        self.df = self.df.join(df,how='left')
+
+    def add_ssGSEA(self,ssGSEA_file):
+        '''
+        Add ssGSEA scores
+        '''
+        ssgsea = pd.read_csv(ssGSEA_file,sep='\t',skiprows=2,index_col=0).transpose().iloc[1:,:]
+        ssgsea.columns = map(lambda x: "ssGSEA_"+x,ssgsea.columns)
+        self.df = self.df.join(ssgsea,how='left')
+
+    def get_qc_pass_cells(self):
+        if "xenocell" in self.df.columns:
+            return self.df[self.df.qc_pass_seurat & self.df.xenocell & (self.df.DoubletFinder == 'Singlet')]
+        else:
+            return self.df[self.df.qc_pass_seurat & (self.df.DoubletFinder == 'Singlet')]
 class rcmb56pdx(SingleCellExperiment):
 
     root="/mnt/c/Users/ochapman/Documents/Mesirov/scRNA+ATAC/"
     barcodes_file = root+"RCMB56-pdx/RCMB56-pdx/outs/filtered_feature_bc_matrix/barcodes.tsv"
-    seurat_file = root+"2021-08-29_seurat/rcmb56-pdx_seurat_metadata.tsv"
+    seurat_file = root+"2021-08-29_seurat/rcmb56-pdx_seurat_metadata_clean.tsv"
     metacell_file = ''
     ecDNA_file = root+"2021-10-07_better-background/rcmb56-pdx/ecDNA_status_gbg.tsv"
     cs_file = root+'2021-08-27_Kazachkova/Kazachkova_rotation_sp21/calls_5000_1e6.csv'
+    xenocell_file = root+"/2021-11-01_xenocell/cellular_barcodes.txt"
+    doubletfinder_file = root+"/2021-11-19_doubletfinder/rcmb56-pdx_xenocelldftable.tsv"
+    ssGSEA_file = root+"2021-11-10_ssGSEA/out/rcmb56-pdx_scale.data.PROJ.gct"
+
     df=pd.DataFrame()
 
     def __init__(self):
         super().__init__(
             self.barcodes_file,
             seurat_file=self.seurat_file,
-            ecDNA_file=self.ecDNA_file
+            ecDNA_file=self.ecDNA_file,
+            xenocell_file=self.xenocell_file,
+            doubletfinder_file=self.doubletfinder_file,
+            ssGSEA_file=self.ssGSEA_file
         )
         self.add_copyscat_dm(self.cs_file)
     
@@ -87,10 +134,12 @@ class rcmb56ht(SingleCellExperiment):
 
     root="/mnt/c/Users/ochapman/Documents/Mesirov/scRNA+ATAC/"
     barcodes_file = root+"RCMB56-ht/cellranger-2.0.0/outs/filtered_feature_bc_matrix/barcodes.tsv"
-    seurat_file = root+"2021-08-29_seurat/rcmb56-ht_seurat_metadata.tsv"
+    seurat_file = root+"2021-08-29_seurat/rcmb56-ht_seurat_metadata_clean.tsv"
     metacell_file = root+"2021-09-07_metacell/rcmb56-ht_metacell_ids.tsv"
     ecDNA_file = root+"2021-10-07_better-background/rcmb56-ht/ecDNA_status_gbg.tsv"
     cs_file = root+"2021-08-27_Kazachkova/copyscat_dm.csv"
+    doubletfinder_file = root+"/2021-11-19_doubletfinder/rcmb56-ht_doubletfindertable.tsv"
+    ssGSEA_file = root+"2021-11-10_ssGSEA/out/rcmb56-ht_scale.data.PROJ.gct"
     df=pd.DataFrame()
 
     def __init__(self):
@@ -98,7 +147,9 @@ class rcmb56ht(SingleCellExperiment):
             self.barcodes_file,
             seurat_file=self.seurat_file,
             ecDNA_file=self.ecDNA_file,
-            metacell_file=self.metacell_file
+            metacell_file=self.metacell_file,
+            ssGSEA_file=self.ssGSEA_file,
+            doubletfinder_file=self.doubletfinder_file
         )
         self.add_copyscat_dm(self.cs_file)
 

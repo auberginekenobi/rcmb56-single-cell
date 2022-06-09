@@ -1,0 +1,28 @@
+# Integration of ht and pdx datasets.
+# https://satijalab.org/seurat/articles/integration_introduction.html#performing-integration-on-datasets-normalized-with-sctransform-1
+# Note need to increase memory available to jupyter notebooks:
+# jupyter notebook --NotebookApp.max_buffer_size=8589934592
+
+library(dplyr)
+library(ggplot2)
+library(EnsDb.Hsapiens.v86)
+library(Seurat)
+library(Signac)
+library(repr)
+#sessionInfo()
+
+# get seuratobjects
+ht <- readRDS("../2021-08-29_seurat/rcmb56-ht_seuratobjdfclean.rds")
+pdx <- readRDS("../2021-08-29_seurat/rcmb56-pdx_xenocelldfcleanseuratobj.rds")
+DefaultAssay(ht) <- 'SCT'
+DefaultAssay(pdx) <- 'SCT'
+#c(ht,pdx)
+
+features <- SelectIntegrationFeatures(object.list = c(ht,pdx),nfeatures=3000)
+assay_list <- PrepSCTIntegration(object.list = c(ht,pdx), anchor.features = features)
+anchors <- FindIntegrationAnchors(object.list = assay_list, normalization.method = "SCT",
+    anchor.features = features)
+rcmb56_combined <- IntegrateData(anchorset = anchors, normalization.method = "SCT")
+
+# Save relevant objects and data tables
+saveRDS(rcmb56_combined,"rcmb56_integrated_seuratobj.rds")
