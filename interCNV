@@ -1,0 +1,334 @@
+---
+title: "InferCNV"
+output: html_document
+---
+#Installation
+#installing InferCNV
+if (!requireNamespace("BiocManager", quietly = TRUE))  
+     install.packages("BiocManager")  
+BiocManager::install("infercnv")
+
+```{r}
+#Loading libraries
+library(dplyr)
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(purrr)
+library(infercnv)
+
+#Reading in files
+seuratobjdf_clean <- readRDS ("/Users/AirSunita/Desktop/Research_Project/GE_folder/DoubletFinder/rcmb56-ht_seuratobjdfclean.rds")
+seuratobjxenocelldfclean <- readRDS ("/Users/AirSunita/Desktop/Research_Project/GE_folder/xenocell/rcmb56-pdx_xenocelldfcleanseuratobj.rds")
+
+mastertableht <- read.table(file = "/Users/AirSunita/Desktop/Research_Project/GE_folder/MasterTablesRCMB56/rcmb56-ht_master_table.tsv" , sep = '\t', header = TRUE)
+mastertablepdx <- read.table(file = "/Users/AirSunita/Desktop/Research_Project/GE_folder/MasterTablesRCMB56/rcmb56-pdx_master_table.tsv" , sep = '\t', header = TRUE)
+```
+#Generating Input files
+```{r}
+#Generating a COUNTS MATRIX FOR HT
+counts_matrix = seuratobjdf_clean@assays$RNA@counts[,colnames(seuratobjdf_clean)]
+# save the output table as an R object (faster and more size efficient)
+saveRDS(round(counts_matrix, digits=3), "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/sc.10x.counts.matrix")
+#write the output table in txt format
+write.table(round(counts_matrix, digits=3), file='/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/sc.10x.counts.matrix', quote=F, sep="\t" )
+```
+
+```{r}
+#read in matrix file
+singleCell.counts.matrix <- "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/sc.10x.counts.matrix"
+singleCell.counts.matrix <- read.delim(singleCell.counts.matrix, header=TRUE, sep='\t')
+colnames(singleCell.counts.matrix) <- sub("\\.", "\\-", colnames(singleCell.counts.matrix))
+```
+
+```{r}
+#Generating a COUNTS MATRIX FOR PDX
+counts_matrixpdx = seuratobjxenocelldfclean@assays$RNA@counts[,colnames(seuratobjxenocelldfclean)]
+# save the output table as an R object (faster and more size efficient)
+saveRDS(round(counts_matrixpdx, digits=3), "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/pdxsc.10x.counts.matrix")
+#write the output table in txt format
+write.table(round(counts_matrixpdx, digits=3), file='/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/pdxsc.10x.counts.matrix', quote=F, sep="\t" )
+```
+```{r}
+#read in matrix file
+pdxsingleCell.counts.matrix <- "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/pdxsc.10x.counts.matrix"
+pdxsingleCell.counts.matrix <- read.delim(pdxsingleCell.counts.matrix, header=TRUE, sep='\t')
+colnames(pdxsingleCell.counts.matrix) <- sub("\\.", "\\-", colnames(pdxsingleCell.counts.matrix))
+```
+```{r}
+#Combining the pdx count matrix with the ht count matrix
+library(gdata)
+combined_matrix <- cbindX(pdxsingleCell.counts.matrix, singleCell.counts.matrix)
+#write the output table in txt format
+write.table(round(combined_matrix, digits=3), file='/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/combinedmatrix.matrix', quote=F, sep="\t" )
+
+#Convert to sparse matrix to run faster
+# combined_matrix <- data.matrix(combined_matrix)
+# sparsecombinedmatrix <- Matrix(combined_matrix, sparse = TRUE)
+```
+```{r}
+#Removing the duplicated cells noted in the combined_matrix file - colnames 2371, 11401 (GTAACTTCCGTGACA-1) and colnames 5228 and 10875 (CTCGCTCCACATAACT-1)
+combined_matrix <- combined_matrix[ ,-c(2371, 5228)]
+```
+
+```{r}
+#Generating ANNOTATIONS file from doublet removed clustering for ht
+counts.df <- seuratobjdf_clean@assays$RNA@counts %>% as.matrix %>% t %>% as.data.frame
+counts.df <- tibble::rownames_to_column(counts.df, "cellnames")
+clusterassignments <- data.frame(seuratobjdf_clean@active.ident)
+clusterassignments <- tibble::rownames_to_column(clusterassignments, "cellnames")
+counts.df <- merge(clusterassignments, counts.df, by = "cellnames")
+rownames(counts.df) <- counts.df$cellnames
+counts.df$cellnames <- NULL
+colnames(counts.df)[1] <- c("clusters")
+
+test_cluster <- clusterassignments %>%
+  mutate(celltype = case_when(seuratobjdf_clean.active.ident == "0" |seuratobjdf_clean.active.ident =="1" |seuratobjdf_clean.active.ident =="2" |seuratobjdf_clean.active.ident =="3" |seuratobjdf_clean.active.ident =="4" |seuratobjdf_clean.active.ident =="5" |seuratobjdf_clean.active.ident =="6" ~ "malignant", TRUE ~ "normal"))
+test_cluster$cells <- paste(test_cluster$celltype, "_", test_cluster$seuratobjdf_clean.active.ident)
+test_cluster <- select(test_cluster, c("cellnames", "cells"))
+names(test_cluster) <- NULL #remove header
+
+#write the output table in txt format
+write.table(test_cluster, file='/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/test_cluster.txt', quote=F, sep="\t", row.names = F) 
+#read in txt file
+test_cluster <- "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/test_cluster.txt"
+test_cluster <- read.delim(test_cluster, header=FALSE, sep='\t')
+rownames(test_cluster) <- test_cluster$V1
+test_cluster = subset(test_cluster, select = -c(V1))
+```
+
+```{r}
+#read in txt file for ecDNA edited cells for ht (revised 1/10/22 by hand from test_cluster txt file)
+test_clusteredited <- "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/test_cluster_editednormal1_10.txt"
+test_clusteredited <- read.delim(test_clusteredited, header=FALSE, sep='\t')
+```
+```{r}
+#If just using the test clusteredited file without creating normal cells txt file run this 
+rownames(test_clusteredited) <- test_clusteredited$V1
+test_clusteredited = subset(test_clusteredited, select = -c(V1))
+```
+#Edit normal cells txt file to remove malignant cells for use with PDX
+```{r}
+normalcells <- select(filter(test_clusteredited, V2 == "normal _ 7" | V2 == "normal _ 8" | V2 == "normal _ 9" | V2 == "normal _ 10" | V2 == "normal _ 11"),c(V1,V2))
+```
+```{r}
+#remove the duplicated cells seen in both pdx and ht
+normalcells <- normalcells[-c(125, 173), ]
+```
+```{r}
+#Run this if not combining pdx and ht annotations and want just normal cells to use
+rownames(normalcells) <- normalcells$V1
+normalcells = subset(normalcells, select = -c(V1))
+```
+```{r}
+#Generating ANNOTATIONS file for PDX
+pdxcounts.df <- seuratobjxenocelldfclean@assays$RNA@counts %>% as.matrix %>% t %>% as.data.frame
+pdxcounts.df <- tibble::rownames_to_column(pdxcounts.df, "cellnames")
+pdxclusterassignments <- data.frame(seuratobjxenocelldfclean@active.ident)
+pdxclusterassignments <- tibble::rownames_to_column(pdxclusterassignments, "cellnames")
+pdxcounts.df <- merge(pdxclusterassignments, pdxcounts.df, by = "cellnames")
+rownames(pdxcounts.df) <- pdxcounts.df$cellnames
+pdxcounts.df$cellnames <- NULL
+colnames(pdxcounts.df)[1] <- c("clusters")
+
+pdxtest_cluster <- pdxclusterassignments %>%
+  mutate(celltype = case_when(seuratobjxenocelldfclean.active.ident == "0" |seuratobjxenocelldfclean.active.ident =="1" |seuratobjxenocelldfclean.active.ident =="2" |seuratobjxenocelldfclean.active.ident =="3" |seuratobjxenocelldfclean.active.ident =="4" |seuratobjxenocelldfclean.active.ident =="5" |seuratobjxenocelldfclean.active.ident =="6" |seuratobjxenocelldfclean.active.ident =="7" |seuratobjxenocelldfclean.active.ident =="8" |seuratobjxenocelldfclean.active.ident =="9" |seuratobjxenocelldfclean.active.ident =="10" |seuratobjxenocelldfclean.active.ident =="11" |seuratobjxenocelldfclean.active.ident =="12" |seuratobjxenocelldfclean.active.ident =="13" |seuratobjxenocelldfclean.active.ident =="14" |seuratobjxenocelldfclean.active.ident =="15" |seuratobjxenocelldfclean.active.ident =="16"  ~ "malignant", TRUE ~ "normal"))
+pdxtest_cluster$cells <- paste(pdxtest_cluster$celltype, "_", pdxtest_cluster$seuratobjxenocelldfclean.active.ident)
+pdxtest_cluster <- select(pdxtest_cluster, c("cellnames", "cells"))
+names(pdxtest_cluster) <- NULL #remove header
+
+#write the output table in txt format
+write.table(pdxtest_cluster, file='/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/pdxtest_cluster.txt', quote=F, sep="\t", row.names = F) 
+```
+```{r}
+#read in txt file
+pdxtest_cluster <- "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/pdxtest_cluster.txt"
+pdxtest_cluster <- read.delim(pdxtest_cluster, header=FALSE, sep='\t')
+```
+```{r}
+#Run this if not combining pdx and normal cells
+rownames(pdxtest_cluster) <- pdxtest_cluster$V1
+pdxtest_cluster = subset(pdxtest_cluster, select = -c(V1))
+```
+```{r}
+#removing duplicated cells in both ht and pdx
+pdxtest_cluster <- pdxtest_cluster[-c(5228, 2371), ]
+```
+```{r}
+#combining the pdx txt annotations file with the ht normal cells annotation file
+combined_annotations <- rbind(normalcells, pdxtest_cluster)
+rownames(combined_annotations) <- combined_annotations$V1
+combined_annotations = subset(combined_annotations, select = -c(V1))
+```
+```{r}
+#The duplicated cells in pdx vs ht are CTCGCTCCACATAACT-1 (cluster 8 in ht, cluster 3 in pdx) and GGTAACTTCCGTGACA-1 (cluster 0 in pdx and cluster 8 in ht). Removed them above in normal cells and pdxtest_cluster
+```
+
+
+```{r}
+#Generating gene ordering file for ht
+geneorder <- read.table(file = '/Users/AirSunita/Desktop/Research_Project/Seurat/seurat_project/rcmb56_ht/filtered_feature_bc_matrix/features 2.tsv' , sep = '\t', header = TRUE)
+names(geneorder)=c("ensemble ID", "gene", "gene expression", "chromosome", "start", "stop")
+gene_order <- select(geneorder, c("gene", "chromosome", "gene expression", "start", "stop"))
+names(gene_order) <- NULL
+# write the output table in txt format
+write.table(gene_order, file='/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/gene_ordering_file.txt', quote=F, sep="\t", row.names = FALSE) 
+#read in txt file
+gene_ordering_file <- "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/gene_ordering_file.txt"
+gene_ordering_file <- read.delim(gene_ordering_file, header=FALSE, sep='\t')
+
+#finding duplicate genes: ‘ARMCX5-GPRASP2’, ‘CYB561D2’, ‘GGT1’, ‘GOLGA8M’, ‘HSPA14’, ‘LINC01238’, ‘LINC01505’, ‘MATR3’, ‘TBCE’, ‘TMSB15B’ and eliminating one of them
+#which(gene_ordering_file$V1 == 'ARMCX5-GPRASP2')
+#which(gene_ordering_file$V1 == 'CYB561D2')
+#which(gene_ordering_file$V1 == 'GGT1')
+#which(gene_ordering_file$V1 == 'GOLGA8M')
+#which(gene_ordering_file$V1 == 'HSPA14')
+#which(gene_ordering_file$V1 == 'LINC01238')
+#which(gene_ordering_file$V1 == 'LINC01505')
+#which(gene_ordering_file$V1 == 'MATR3')
+#which(gene_ordering_file$V1 == 'TBCE')
+#which(gene_ordering_file$V1 == 'TMSB15B')
+#gene_ordering_file <-gene_ordering_file[-c(35965, 6504, 34714, 25271, 17692, 5946, 16988, 10565, 36001, 3235), ]
+
+#removing duplicated genes
+gene_ordering_file <-gene_ordering_file[-c(35965, 6504, 34714, 25271, 17692, 5946, 16988, 10565, 36001, 3235), ]
+
+#selecting only gene expression and removing peaks
+geneorderrevised <- gene_ordering_file %>% filter(V3 == "Gene Expression")
+geneorderrevised <- geneorderrevised %>% filter(V2 == "chr1" | V2 == "chr2" | V2 == "chr3" | V2 == "chr4" | V2 == "chr5" | V2 == "chr6" | V2 == "chr7" | V2 == "chr8" | V2 == "chr9" | V2 == "chr10" | V2 == "chr11" | V2 == "chr12" | V2 == "chr13" | V2 == "chr14" | V2 == "chr15" | V2 == "chr16" | V2 == "chr17" | V2 == "chr18" | V2 == "chr19" | V2 == "chr20" | V2 == "chr21" | V2 == "chr22" | V2 == "chrX" | V2 == "chrY")
+#removing the gene expression column
+geneorderrevised <- select(geneorderrevised, c("V1", "V2", "V4", "V5"))
+
+#changing rownames to be gene names
+rownames(geneorderrevised) <- geneorderrevised$V1
+geneorderrevised = subset(geneorderrevised, select = -c(V1))
+```
+```{r}
+#Generating gene ordering file for PDX
+pdxgeneorder <- read.table(file = '/Users/AirSunita/Desktop/Research_Project/Seurat/seurat_project/rcmb56_pdx/filtered_feature_bc_matrix/features.tsv' , sep = '\t', header = TRUE)
+names(pdxgeneorder)=c("ensemble ID", "gene", "gene expression", "chromosome", "start", "stop")
+pdxgene_order <- select(pdxgeneorder, c("gene", "chromosome", "gene expression", "start", "stop"))
+names(pdxgene_order) <- NULL
+# write the output table in txt format
+write.table(pdxgene_order, file='/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/pdxgene_ordering_file.txt', quote=F, sep="\t", row.names = FALSE) 
+#read in txt file
+pdxgene_ordering_file <- "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/pdxgene_ordering_file.txt"
+pdxgene_ordering_file <- read.delim(pdxgene_ordering_file, header=FALSE, sep='\t')
+
+#finding duplicate genes: ‘ARMCX5-GPRASP2’, ‘CYB561D2’, ‘GGT1’, ‘GOLGA8M’, ‘HSPA14’, ‘LINC01238’, ‘LINC01505’, ‘MATR3’, ‘TBCE’, ‘TMSB15B’ and eliminating one of them
+#which(gene_ordering_file$V1 == 'ARMCX5-GPRASP2')
+#which(gene_ordering_file$V1 == 'CYB561D2')
+#which(gene_ordering_file$V1 == 'GGT1')
+#which(gene_ordering_file$V1 == 'GOLGA8M')
+#which(gene_ordering_file$V1 == 'HSPA14')
+#which(gene_ordering_file$V1 == 'LINC01238')
+#which(gene_ordering_file$V1 == 'LINC01505')
+#which(gene_ordering_file$V1 == 'MATR3')
+#which(gene_ordering_file$V1 == 'TBCE')
+#which(gene_ordering_file$V1 == 'TMSB15B')
+#gene_ordering_file <-gene_ordering_file[-c(35965, 6504, 34714, 25271, 17692, 5946, 16988, 10565, 36001, 3235), ]
+
+#removing duplicated genes
+pdxgene_ordering_file <-pdxgene_ordering_file[-c(35965, 6504, 34714, 25271, 17692, 5946, 16988, 10565, 36001, 3235), ]
+
+#selecting only gene expression and removing peaks
+pdxgeneorderrevised <- pdxgene_ordering_file %>% filter(V3 == "Gene Expression")
+pdxgeneorderrevised <- pdxgeneorderrevised %>% filter(V2 == "chr1" | V2 == "chr2" | V2 == "chr3" | V2 == "chr4" | V2 == "chr5" | V2 == "chr6" | V2 == "chr7" | V2 == "chr8" | V2 == "chr9" | V2 == "chr10" | V2 == "chr11" | V2 == "chr12" | V2 == "chr13" | V2 == "chr14" | V2 == "chr15" | V2 == "chr16" | V2 == "chr17" | V2 == "chr18" | V2 == "chr19" | V2 == "chr20" | V2 == "chr21" | V2 == "chr22" | V2 == "chrX" | V2 == "chrY")
+#removing the gene expression column
+pdxgeneorderrevised <- select(pdxgeneorderrevised, c("V1", "V2", "V4", "V5"))
+#changing rownames to be gene names
+rownames(pdxgeneorderrevised) <- pdxgeneorderrevised$V1
+pdxgeneorderrevised = subset(pdxgeneorderrevised, select = -c(V1))
+```
+#Running execution
+#running infercnv with the new doublet removed annotations file and the new ecDNA edited cells (used as of 1_10_22) for the HT
+```{r}
+htinfercnv_obj = CreateInfercnvObject(raw_counts_matrix=singleCell.counts.matrix,
+                                    annotations_file=test_clusteredited, delim="\t",
+                                    gene_order_file=geneorderrevised,
+                                    ref_group_names=c("normal _ 7", "normal _ 8", "normal _ 9","normal _ 10", "normal _ 11"))
+```
+```{r}
+#Running infercnv with the pdx combined matrix, combined annotation file
+infercnv_obj = CreateInfercnvObject(raw_counts_matrix=combined_matrix,
+                                    annotations_file=combined_annotations, delim="\t",
+                                    gene_order_file=pdxgeneorderrevised,
+                                    ref_group_names=c("normal _ 7", "normal _ 8", "normal _ 9","normal _ 10", "normal _ 11"))
+```
+```{r}
+# perform infercnv operations to reveal cnv signal
+infercnv_obj = infercnv::run(htinfercnv_obj,
+                             cutoff=0.1,  # use 1 for smart-seq, 0.1 for 10x-genomics
+                             out_dir="/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/Outputs2_14",  # dir is auto-created for storing outputs #changed outputformat to be pdf from default png
+                             cluster_by_groups=T,   # cluster
+                             denoise=T, HMM = T, resume_mode=FALSE, output_format = "pdf" 
+                             )
+```
+```{r} 
+#running infercnv to plot by subgroup
+# perform infercnv operations to reveal cnv signal
+infercnv_group = plot_per_group(infercnv_obj, out_dir = "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/Outputs1_13")
+```  
+#changing window size to better detect changes then running infercnv on that window
+```{r}
+infercnv_object_window <- infercnv::apply_median_filtering(infercnv_obj, window_size = 5, on_observations = TRUE, on_references = TRUE)
+```
+```{r}
+infercnv_windowgroup = plot_per_group(infercnv_object_window, out_dir = "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/Outputs1_4/window")
+```
+
+
+
+
+
+
+#Reading in txt observation files
+```{r}
+group6observations <- "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/Outputs1_4/window/infercnv_per_group_OBS_malignant\ _\ 6.observations.txt"
+group6observations <- read.csv(group6observations, header=TRUE)
+```
+
+#Extracting HMM Features
+```{r}
+seuratobjdf_clean = infercnv::add_to_seurat(infercnv_output_path= "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/Outputs",
+                                     seurat_obj=seuratobjdf_clean, # optional
+                                     top_n=10
+                                     )
+```
+```{r}
+#png("proportion_dupli_chr1.png")
+FeaturePlot(seuratobjdf_clean, reduction="wnn.umap", features="has_dupli_chr7", cols = c("blue", "gray"), slot = "scale.data", label = TRUE, label.size = 2)
+FeaturePlot(seuratobjdf_clean, reduction="wnn.umap", features="has_cnv_chr4", cols = c("blue", "gray"), slot = "scale.data", label = TRUE, label.size = 2)
+FeaturePlot(seuratobjdf_clean, reduction="wnn.umap", features="has_loss_chr4", cols = c("blue", "gray"), slot = "scale.data", label = TRUE, label.size = 2)
+DimPlot(seuratobjdf_clean, reduction="wnn.umap", group.by="top_dupli_6", pt.size=0.5 )
+#dev.off()
+```
+
+
+
+```
+```{r}
+DimPlot(seuratobjdf_clean, reduction = "wnn.umap", label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("WNN")
+```
+
+```{r}
+#Generating old ANNOTATIONS file without new doublet clustering
+annotations_all <- select(mastertableht, c("X", "cell.type", "qc_pass_seurat", "DoubletFinder", "seurat_cluster"))
+annotations <- annotations_all %>% filter(qc_pass_seurat == "TRUE")
+annotations <- annotations_all %>% filter(DoubletFinder == "Singlet")
+annotations <- select(annotations, c("X", "cell.type", "seurat_cluster")) #adding in cluster# as column
+annotations$cell_cluster <- paste(annotations$cell.type, "_", annotations$seurat_cluster) #concatenating cluster column to cell type
+annotations$cell_cluster[annotations$cell_cluster=="malignant _ 8"] <- "normal _ 8" #changing the columns with cluster 8 from malignant to normal (cells in row 160, 687, 1657, 2153, 2368, 2443, 2701)
+annotations$cell_cluster[annotations$cell_cluster=="malignant _ 6"] <- "normal _ 6"
+annotations$cell_cluster[annotations$cell_cluster=="malignant _ 7"] <- "normal _ 7"
+annotations$cell_cluster[annotations$cell_cluster=="normal  _ 7"] <- "normal _ 7"
+annotations <- select(annotations, c("X", "cell_cluster"))
+names(annotations) <- NULL #remove header
+#write the output table in txt format
+write.table(annotations, file='/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/cellAnnotations.txt', quote=F, sep="\t", row.names = F) 
+#read in txt file
+cellAnnotations <- "/Users/AirSunita/Desktop/Research_Project/GE_folder/InferCNV/cellAnnotations.txt"
+cellAnnotations <- read.delim(cellAnnotations, header=FALSE, sep='\t')
+rownames(cellAnnotations) <- cellAnnotations$V1
+cellAnnotations = subset(cellAnnotations, select = -c(V1))
+```
